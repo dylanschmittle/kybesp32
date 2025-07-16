@@ -1,0 +1,204 @@
+# Makefile for Kyber Networking Protocol Tests
+# Builds and runs comprehensive test suite for quantum-resistant mesh networking
+
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -g
+INCLUDES = -I. -Imeshtastic/src -Imeshtastic/src/mesh
+
+# Test executables
+TESTS = test_kyber_networking test_kyber_integration test_kyber_basic
+
+# Source files for Kyber implementation
+KYBER_SOURCES = components/kem/kem.c \
+                components/indcpa/indcpa.c \
+                components/polyvec/polyvec.c \
+                components/poly/poly.c \
+                components/ntt/ntt.c \
+                components/reduce/reduce.c \
+                components/fips202/fips202.c \
+                components/symmetric/symmetric-shake.c \
+                components/randombytes/randombytes.c
+
+# Test-specific sources (mocked implementations)
+TEST_SOURCES = test_mocks.cpp
+
+.PHONY: all clean test run_tests build_meshtastic check_kyber test_hardware flash_t_decks monitor_t_decks hardware_setup
+
+all: $(TESTS)
+
+# Build networking protocol tests
+test_kyber_networking: test_kyber_networking.cpp
+	@echo "Building Kyber networking protocol tests..."
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $< -DKYBER_K=2 -DKYBER_90S
+
+# Build integration tests
+test_kyber_integration: test_kyber_integration.cpp
+	@echo "Building Kyber integration tests..."
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $< -DKYBER_K=2 -DKYBER_90S
+
+# Build basic Kyber tests
+test_kyber_basic: test_kyber.c $(KYBER_SOURCES)
+	@echo "Building basic Kyber crypto tests..."
+	gcc -std=c99 $(INCLUDES) -o $@ $^ -DKYBER_K=2 -DKYBER_90S -lm
+
+# Build Meshtastic with Kyber integration
+build_meshtastic:
+	@echo "Building Meshtastic with Kyber integration..."
+	cd meshtastic && platformio run -e t-deck-tft
+
+# Run all tests
+test: $(TESTS)
+	@echo "=========================================="
+	@echo "RUNNING KYBER QUANTUM-RESISTANT MESH TESTS"
+	@echo "=========================================="
+	@echo ""
+	
+	@echo "1. Running Basic Kyber Crypto Tests..."
+	@echo "--------------------------------------"
+	./test_kyber_basic
+	@echo ""
+	
+	@echo "2. Running Kyber Networking Protocol Tests..."
+	@echo "----------------------------------------------"
+	./test_kyber_networking
+	@echo ""
+	
+	@echo "3. Running Kyber Integration Tests..."
+	@echo "-------------------------------------"
+	./test_kyber_integration
+	@echo ""
+	
+	@echo "=========================================="
+	@echo "ALL TESTS COMPLETED"
+	@echo "=========================================="
+
+# Run tests and build firmware
+run_tests: test build_meshtastic
+	@echo ""
+	@echo "=========================================="
+	@echo "KYBER MESH NETWORKING VALIDATION COMPLETE"
+	@echo "=========================================="
+	@echo ""
+	@echo "✓ Kyber crypto library tests passed"
+	@echo "✓ Networking protocol tests passed"
+	@echo "✓ Integration tests passed"
+	@echo "✓ Meshtastic firmware built successfully"
+	@echo ""
+	@echo "READY FOR QUANTUM-RESISTANT MESH NETWORKING"
+	@echo ""
+
+# Check Kyber configuration
+check_kyber:
+	@echo "Kyber Configuration Check:"
+	@echo "=========================="
+	@echo "Security Level: Kyber512 (KYBER_K=2)"
+	@echo "Variant: 90s mode (optimized for performance)"
+	@echo "Public Key Size: 800 bytes"
+	@echo "Private Key Size: 1632 bytes"
+	@echo "Ciphertext Size: 768 bytes"
+	@echo "Shared Secret Size: 32 bytes"
+	@echo ""
+	@echo "Protocol Configuration:"
+	@echo "======================"
+	@echo "Chunk Size: 200 bytes (LoRa compatible)"
+	@echo "Public Key Chunks: 4"
+	@echo "Ciphertext Chunks: 4"
+	@echo "Max Concurrent Sessions: 4"
+	@echo "Session Timeout: 30 seconds"
+	@echo ""
+
+# Performance benchmark
+benchmark: test_kyber_basic
+	@echo "Running Kyber Performance Benchmark..."
+	@echo "======================================"
+	./test_kyber_basic | grep -A 10 "Performance results"
+
+# Memory usage analysis
+memory_analysis: build_meshtastic
+	@echo "Meshtastic + Kyber Memory Usage:"
+	@echo "================================"
+	cd meshtastic && platformio run -e t-deck-tft --verbose | grep -E "(RAM|Flash):"
+
+# Clean build artifacts
+clean:
+	rm -f $(TESTS)
+	rm -f *.o
+	cd meshtastic && platformio run --target clean
+
+# Development helpers
+dev: check_kyber test
+	@echo "Development environment ready"
+
+# Continuous integration target
+ci: clean all test build_meshtastic
+	@echo "CI pipeline completed successfully"
+
+# Hardware testing targets
+test_hardware: hardware_setup build_meshtastic
+	@echo "=========================================="
+	@echo "STARTING T-DECK HARDWARE TEST"
+	@echo "=========================================="
+	@echo ""
+	@echo "Prerequisites:"
+	@echo "1. Connect 2 T-Deck devices via USB"
+	@echo "2. Put both devices in flashing mode (hold BOOT button)"
+	@echo "3. Ensure pyserial is installed: pip install pyserial"
+	@echo ""
+	@read -p "Press Enter when both T-Decks are connected and ready..." dummy
+	@python3 test_two_t_decks.py
+
+# Flash firmware to both T-Deck devices
+flash_t_decks: build_meshtastic
+	@echo "Flashing Kyber-enabled firmware to T-Deck devices..."
+	@echo "Make sure both devices are in flashing mode!"
+	@python3 flash_t_decks_helper.py
+
+# Monitor serial output from both T-Decks
+monitor_t_decks:
+	@echo "Monitoring T-Deck serial output..."
+	@echo "Press Ctrl+C to stop monitoring"
+	@python3 test_two_t_decks.py --skip-flash --verbose
+
+# Hardware setup check
+hardware_setup:
+	@echo "T-Deck Hardware Setup Check"
+	@echo "============================"
+	@echo ""
+	@echo "Checking system requirements..."
+	@python3 check_hardware_deps.py
+
+# Run quick hardware validation
+test_hardware_quick: hardware_setup
+	@echo "Running quick hardware validation..."
+	@python3 test_two_t_decks.py --test-duration 30
+
+# Help target
+help:
+	@echo "Kyber Quantum-Resistant Mesh Networking Test Suite"
+	@echo "=================================================="
+	@echo ""
+	@echo "SOFTWARE TESTING:"
+	@echo "  all              - Build all test executables"
+	@echo "  test             - Run all software tests"
+	@echo "  run_tests        - Run tests and build firmware"
+	@echo "  build_meshtastic - Build Meshtastic firmware with Kyber"
+	@echo "  check_kyber      - Show Kyber configuration"
+	@echo "  benchmark        - Run performance benchmark"
+	@echo "  memory_analysis  - Analyze memory usage"
+	@echo ""
+	@echo "HARDWARE TESTING:"
+	@echo "  test_hardware    - Complete T-Deck hardware test (MAIN TEST)"
+	@echo "  hardware_setup   - Check hardware setup and requirements"
+	@echo "  flash_t_decks    - Flash firmware to both T-Deck devices"
+	@echo "  monitor_t_decks  - Monitor serial output from both devices"
+	@echo "  test_hardware_quick - Quick 30-second hardware test"
+	@echo ""
+	@echo "UTILITIES:"
+	@echo "  clean            - Clean build artifacts"
+	@echo "  dev              - Development setup"
+	@echo "  ci               - Continuous integration"
+	@echo "  help             - Show this help"
+	@echo ""
+	@echo "QUICK START:"
+	@echo "  make hardware_setup  # Check if T-Decks are connected"
+	@echo "  make test_hardware   # Run complete hardware test"
